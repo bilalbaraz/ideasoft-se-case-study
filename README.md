@@ -1,4 +1,5 @@
 # Ideasoft SE Case Study - E-Commerce API
+[![Coverage Status](https://coveralls.io/repos/github/bilalbaraz/ideasoft-se-case-study/badge.svg?branch=main)](https://coveralls.io/github/bilalbaraz/ideasoft-se-case-study?branch=main)
 
 Bu proje, IdeaSoft Senior PHP Developer pozisyonu için hazırlanmış örnek bir e-ticaret API projesidir.
 
