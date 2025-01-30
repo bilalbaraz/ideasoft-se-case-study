@@ -58,10 +58,9 @@ jobs:
           mkdir -p database
           touch database/database.sqlite
 
-      - name: Setup MySQL
+      - name: Setup MySQL User
         run: |
-          sudo systemctl start mysql
-          mysql -h 127.0.0.1 -uroot -proot -e "CREATE USER 'ideasoft'@'%' IDENTIFIED BY 'ideasoft';"
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE USER IF NOT EXISTS 'ideasoft'@'%' IDENTIFIED BY 'ideasoft';"
           mysql -h 127.0.0.1 -uroot -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'ideasoft'@'%' WITH GRANT OPTION;"
           mysql -h 127.0.0.1 -uroot -proot -e "FLUSH PRIVILEGES;"
 
