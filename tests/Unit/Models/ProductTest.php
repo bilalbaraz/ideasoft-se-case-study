@@ -28,6 +28,7 @@ class ProductTest extends TestCase
         $product = new Product();
         
         $this->assertEquals([
+            'id' => 'integer',
             'price' => 'decimal:2',
             'stock' => 'integer',
             'category_id' => 'integer',

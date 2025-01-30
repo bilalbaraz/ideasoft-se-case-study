@@ -27,6 +27,7 @@ class CustomerTest extends TestCase
         $customer = new Customer();
         
         $this->assertEquals([
+            'id' => 'integer',
             'since' => 'date',
             'revenue' => 'decimal:2',
             'deleted_at' => 'datetime'
