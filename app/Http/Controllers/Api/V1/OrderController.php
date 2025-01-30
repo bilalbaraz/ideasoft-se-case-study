@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Order\StoreOrderRequest;
+use App\Http\Requests\Api\V1\Order\UpdateOrderRequest;
 use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -29,25 +30,18 @@ class OrderController extends Controller
      * 
      * @throws ValidationException
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreOrderRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1'
-        ]);
-
         try {
-            return DB::transaction(function () use ($validated) {
+            return DB::transaction(function () use ($request) {
                 // Create order
                 $order = Order::create([
-                    'customer_id' => $validated['customer_id'],
+                    'customer_id' => $request->customer_id,
                     'total' => 0 // Will be calculated after adding items
                 ]);
 
                 // Add items to order
-                foreach ($validated['items'] as $item) {
+                foreach ($request->items as $item) {
                     $product = Product::findOrFail($item['product_id']);
 
                     // Check stock
@@ -105,16 +99,10 @@ class OrderController extends Controller
      * 
      * @throws ValidationException
      */
-    public function update(Request $request, Order $order): JsonResponse
+    public function update(UpdateOrderRequest $request, Order $order): JsonResponse
     {
-        $validated = $request->validate([
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1'
-        ]);
-
         try {
-            return DB::transaction(function () use ($order, $validated) {
+            return DB::transaction(function () use ($order, $request) {
                 // Restore previous product stocks
                 foreach ($order->items as $item) {
                     $product = $item->product;
@@ -126,7 +114,7 @@ class OrderController extends Controller
                 $order->items()->delete();
 
                 // Add new items
-                foreach ($validated['items'] as $item) {
+                foreach ($request->items as $item) {
                     $product = Product::findOrFail($item['product_id']);
 
                     // Check stock
