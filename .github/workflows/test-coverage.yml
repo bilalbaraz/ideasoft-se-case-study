@@ -15,7 +15,7 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: ideasoft_test
+          MYSQL_DATABASE: ideasoft
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
@@ -53,15 +53,16 @@ jobs:
       - name: Build assets
         run: npm run build
 
-      - name: Create Database
+      - name: Create Local Database Directory
         run: |
-          mkdir -p database
-          touch database/database.sqlite
+          mkdir -p ideasoft
+          touch ideasoft/ideasoft.sqlite
 
-      - name: Setup MySQL User
+      - name: Setup MySQL User and Database
         run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS ideasoft;"
           mysql -h 127.0.0.1 -uroot -proot -e "CREATE USER IF NOT EXISTS 'ideasoft'@'%' IDENTIFIED BY 'ideasoft';"
-          mysql -h 127.0.0.1 -uroot -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'ideasoft'@'%' WITH GRANT OPTION;"
+          mysql -h 127.0.0.1 -uroot -proot -e "GRANT ALL PRIVILEGES ON ideasoft.* TO 'ideasoft'@'%';"
           mysql -h 127.0.0.1 -uroot -proot -e "FLUSH PRIVILEGES;"
 
       - name: Run Database Migrations
@@ -69,7 +70,7 @@ jobs:
           DB_CONNECTION: mysql
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
-          DB_DATABASE: ideasoft_test
+          DB_DATABASE: ideasoft
           DB_USERNAME: ideasoft
           DB_PASSWORD: ideasoft
         run: php artisan migrate:fresh --seed
@@ -79,12 +80,12 @@ jobs:
           DB_CONNECTION: mysql
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
-          DB_DATABASE: ideasoft_test
+          DB_DATABASE: ideasoft
           DB_USERNAME: ideasoft
           DB_PASSWORD: ideasoft
         run: |
           mkdir -p build/logs
-          XDEBUG_MODE=coverage vendor/bin/phpunit --verbose --coverage-clover build/logs/clover.xml
+          XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-clover build/logs/clover.xml
 
       - name: Upload coverage results to Coveralls
         env:
