@@ -13,7 +13,7 @@ class Product extends Model
 
     protected $fillable = [
         'name',
-        'category',
+        'category_id',
         'price',
         'stock'
     ];
@@ -21,7 +21,7 @@ class Product extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'stock' => 'integer',
-        'category' => 'integer'
+        'category_id' => 'integer'
     ];
 
     /**
