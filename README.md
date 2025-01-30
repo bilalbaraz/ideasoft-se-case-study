@@ -61,17 +61,134 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
 
 ## API Endpoints
 
-### Sipariş İşlemleri
+### Orders
 
-- `GET /api/orders` - Tüm siparişleri listele
-- `GET /api/orders/{id}` - Belirli bir siparişi getir
-- `POST /api/orders` - Yeni sipariş oluştur
-- `PUT /api/orders/{id}` - Mevcut siparişi güncelle
-- `DELETE /api/orders/{id}` - Sipariş sil
+#### List Orders
+- **GET** `/api/v1/orders`
+- **Description**: Tüm siparişleri listele
+- **Response**:
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "customer_id": 1,
+            "total": 1500.00,
+            "created_at": "2024-01-30T10:00:00.000000Z",
+            "updated_at": "2024-01-30T10:00:00.000000Z",
+            "customer": {
+                "id": 1,
+                "name": "John Doe"
+            },
+            "items": [
+                {
+                    "id": 1,
+                    "order_id": 1,
+                    "product_id": 1,
+                    "quantity": 2,
+                    "unit_price": 500.00,
+                    "total": 1000.00,
+                    "product": {
+                        "id": 1,
+                        "name": "Product 1"
+                    }
+                }
+            ]
+        }
+    ]
+}
+```
 
-### İndirim Hesaplama
+#### Get Order
+- **GET** `/api/v1/orders/{id}`
+- **Description**: Belirli bir siparişi getir
+- **Response**: Tek bir sipariş objesi
 
-- `POST /api/orders/{id}/calculate-discount` - Sipariş için indirimi hesapla
+#### Create Order
+- **POST** `/api/v1/orders`
+- **Description**: Yeni sipariş oluştur
+- **Request Body**:
+```json
+{
+    "customer_id": 1,
+    "items": [
+        {
+            "product_id": 1,
+            "quantity": 2
+        },
+        {
+            "product_id": 2,
+            "quantity": 1
+        }
+    ]
+}
+```
+- **Response**: Oluşturulan sipariş objesi ve başarı mesajı
+
+#### Update Order
+- **PUT** `/api/v1/orders/{id}`
+- **Description**: Siparişi güncelle
+- **Request Body**:
+```json
+{
+    "items": [
+        {
+            "product_id": 1,
+            "quantity": 3
+        },
+        {
+            "product_id": 2,
+            "quantity": 2
+        }
+    ]
+}
+```
+- **Response**: Güncellenen sipariş objesi ve başarı mesajı
+
+#### Delete Order
+- **DELETE** `/api/v1/orders/{id}`
+- **Description**: Siparişi sil
+- **Response**: Başarı mesajı
+
+#### Calculate Order Discount
+- **POST** `/api/v1/orders/{id}/calculate-discount`
+- **Description**: Sipariş indirimlerini hesapla
+- **Response**:
+```json
+{
+    "order_id": 1,
+    "subtotal": 1500.00,
+    "discounts": [
+        {
+            "type": "category",
+            "category_id": 1,
+            "item_count": 8,
+            "discount_rate": "10%",
+            "amount": 80.00
+        },
+        {
+            "type": "total_amount",
+            "min_amount": 1000,
+            "order_total": 1500.00,
+            "discount_rate": "10%",
+            "amount": 150.00
+        }
+    ],
+    "total_discount": 230.00,
+    "total": 1270.00
+}
+```
+
+### İndirim Kuralları
+
+1. **Kategori İndirimi**
+   - Aynı kategoriden 6 veya daha fazla ürün alındığında
+   - O kategorideki ürünlerin toplamı üzerinden %10 indirim
+   - Her kategori için ayrı hesaplanır
+
+2. **Toplam Tutar İndirimi**
+   - Sipariş toplamı 1000 TL ve üzeri olduğunda
+   - Tüm sipariş tutarı üzerinden %10 indirim
 
 ## Veritabanı Şeması
 
