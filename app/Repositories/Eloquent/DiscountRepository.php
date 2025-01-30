@@ -12,9 +12,9 @@ class DiscountRepository implements DiscountRepositoryInterface
     public function getOrderItemsByCategory(Order $order): Collection
     {
         return $order->items()
-            ->with(['product.category'])
+            ->with('product')
             ->get()
-            ->groupBy('product.category.id');
+            ->groupBy('product.category_id');
     }
 
     public function getOrderTotal(Order $order): float
