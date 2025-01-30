@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Unit\Api\V1\Controllers;
+namespace Tests\Unit\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Requests\Api\V1\Order\StoreOrderRequest;

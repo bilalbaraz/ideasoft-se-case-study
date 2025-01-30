@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Unit\Api\V1\Controllers;
+namespace Tests\Unit\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\V1\DiscountController;
 use App\Models\Order;
