@@ -246,6 +246,35 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
    - deleted_at (soft delete)
    - timestamps
 
+## Roadmap
+
+Projenin öncelikli geliştirme planı:
+
+1. **Authentication & Authorization**
+   - JWT tabanlı authentication sistemi
+   - Role-based access control (RBAC)
+   - API key yönetimi ve rotasyonu
+
+2. **API Geliştirmeleri**
+   - OpenAPI/Swagger dokümantasyonu
+   - Rate limiting ve request throttling
+   - Bulk işlemler için endpointler
+
+3. **Ödeme Sistemi Entegrasyonu**
+   - Çoklu payment provider desteği
+   - Async ödeme işlemleri
+   - Webhook sistemi
+
+4. **Performans İyileştirmeleri**
+   - Cache sistemi implementasyonu
+   - Database indexleme optimizasyonu
+   - Query optimizasyonları
+
+5. **Monitoring & Logging**
+   - Detaylı API loglama sistemi
+   - Performance monitoring
+   - Business metrics tracking
+
 ## Test
 
 Unit ve feature testlerini çalıştırmak için:
