@@ -251,7 +251,7 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
 Unit ve feature testlerini çalıştırmak için:
 
 ```bash
-docker compose exec app php artisan test
+docker compose exec -e XDEBUG_MODE=coverage app vendor/bin/phpunit --coverage-clover build/logs/clover.xml
 ```
 
 ## Lisans
