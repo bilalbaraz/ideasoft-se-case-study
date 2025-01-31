@@ -3,6 +3,23 @@
 
 Bu proje, IdeaSoft Senior PHP Developer pozisyonu için hazırlanmış örnek bir e-ticaret API projesidir.
 
+## Demo
+
+API'yi aşağıdaki adreslerden test edebilirsiniz:
+
+- Production: [https://ideasoft.barazlab.com](https://ideasoft.barazlab.com)
+- Local: [http://localhost:8000](http://localhost:8000)
+
+## Postman Collection
+
+API'yi test etmek için Postman Collection'ı kullanabilirsiniz:
+
+[![Run in Postman](https://run.pstmn.io/button.svg)](https://app.getpostman.com/run-collection/your-collection-id)
+
+İki farklı environment bulunmaktadır:
+- Production Environment (ideasoft.barazlab.com)
+- Local Environment (localhost:8000)
+
 ## Teknolojiler
 
 - PHP 8.3
