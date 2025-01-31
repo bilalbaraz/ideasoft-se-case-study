@@ -47,69 +47,91 @@ class ProductServiceTest extends TestCase
         $this->assertEquals(1, $result->id);
     }
 
-    public function test_decrease_stock(): void
+    /** @test */
+    public function it_should_decrease_stock_correctly(): void
     {
         // Arrange
         $product = new Product();
+        $product->id = 1;
+        $product->stock = 10;
         $quantity = 5;
 
-        $this->productRepository->shouldReceive('updateStock')
+        $this->productRepository
+            ->shouldReceive('updateStock')
             ->once()
-            ->with($product, -$quantity);
+            ->with(Mockery::on(function ($arg) use ($product) {
+                return $arg->id === $product->id;
+            }), -5)
+            ->andReturnNull();
 
         // Act
         $this->service->decreaseStock($product, $quantity);
+
+        // Assert - verify mock expectations
+        $this->assertTrue(true); // Mock verification will fail if expectations aren't met
     }
 
-    public function test_increase_stock(): void
+    /** @test */
+    public function it_should_increase_stock_correctly(): void
     {
         // Arrange
         $product = new Product();
-        $quantity = 5;
+        $product->id = 1;
+        $product->stock = 5;
+        $quantity = 3;
 
-        $this->productRepository->shouldReceive('updateStock')
+        $this->productRepository
+            ->shouldReceive('updateStock')
             ->once()
-            ->with($product, $quantity);
+            ->with(Mockery::on(function ($arg) use ($product) {
+                return $arg->id === $product->id;
+            }), 3)
+            ->andReturnNull();
 
         // Act
         $this->service->increaseStock($product, $quantity);
+
+        // Assert - verify mock expectations
+        $this->assertTrue(true); // Mock verification will fail if expectations aren't met
     }
 
-    public function test_validate_stock_passes_when_enough_stock(): void
+    public function test_validate_stock_with_sufficient_stock(): void
     {
         // Arrange
         $product = new Product();
-        $quantity = 5;
-
-        $this->productRepository->shouldReceive('hasStock')
-            ->once()
-            ->with($product, $quantity)
-            ->andReturn(true);
-
-        // Act
-        $this->service->validateStock($product, $quantity);
-
-        // Assert - no exception thrown
-        $this->assertTrue(true);
-    }
-
-    public function test_validate_stock_throws_exception_when_not_enough_stock(): void
-    {
-        // Arrange
-        $product = new Product();
+        $product->id = 1;
         $product->name = 'Test Product';
         $quantity = 5;
 
         $this->productRepository->shouldReceive('hasStock')
             ->once()
             ->with($product, $quantity)
-            ->andReturn(false);
-
-        // Assert
-        $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('Product Test Product does not have enough stock');
+            ->andReturnTrue();
 
         // Act
+        $this->service->validateStock($product, $quantity);
+        
+        // Assert - no exception thrown
+        $this->assertTrue(true);
+    }
+
+    public function test_validate_stock_with_insufficient_stock(): void
+    {
+        // Arrange
+        $product = new Product();
+        $product->id = 1;
+        $product->name = 'Test Product';
+        $quantity = 5;
+
+        $this->productRepository->shouldReceive('hasStock')
+            ->once()
+            ->with($product, $quantity)
+            ->andReturnFalse();
+
+        // Act & Assert
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Product Test Product does not have enough stock');
+        
         $this->service->validateStock($product, $quantity);
     }
 }
