@@ -14,7 +14,7 @@ API'yi aşağıdaki adreslerden test edebilirsiniz:
 
 API'yi test etmek için Postman Collection'ı kullanabilirsiniz:
 
-[![Run in Postman](https://run.pstmn.io/button.svg)](https://app.getpostman.com/run-collection/your-collection-id)
+[![Run in Postman](https://run.pstmn.io/button.svg)](https://github.com/bilalbaraz/ideasoft-se-case-study/tree/main/postman)
 
 İki farklı environment bulunmaktadır:
 - Production Environment (ideasoft.barazlab.com)

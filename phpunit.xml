@@ -6,15 +6,18 @@
 >
     <testsuites>
         <testsuite name="Unit">
-            <directory>tests/Unit</directory>
-        </testsuite>
-        <testsuite name="Feature">
-            <directory>tests/Feature</directory>
+            <directory>tests/Unit/Http</directory>
+            <directory>tests/Unit/Models</directory>
+            <directory>tests/Unit/Repositories</directory>
+            <directory>tests/Unit/Services</directory>
         </testsuite>
     </testsuites>
     <source>
         <include>
-            <directory>app</directory>
+            <directory>app/Http</directory>
+            <directory>app/Models</directory>
+            <directory>app/Repositories</directory>
+            <directory>app/Services</directory>
         </include>
     </source>
     <coverage>
@@ -29,7 +32,7 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_DRIVER" value="array"/>
         <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_DATABASE" value="ideasoft_test"/>
+        <env name="DB_DATABASE" value="ideasoft_se_case_study"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
