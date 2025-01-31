@@ -24,3 +24,4 @@ yarn-error.log
 coverage-report
 build
 .composer
+phpstan.neon

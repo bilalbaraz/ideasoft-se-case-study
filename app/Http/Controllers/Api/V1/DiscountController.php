@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\DiscountService;
 use Illuminate\Http\JsonResponse;
+use Sentry\State\Scope;
 
 class DiscountController extends Controller
 {
@@ -19,8 +20,21 @@ class DiscountController extends Controller
      */
     public function calculate(Order $order): JsonResponse
     {
-        return response()->json(
-            $this->discountService->calculateDiscounts($order)
-        );
+        try {
+            return response()->json(
+                $this->discountService->calculateDiscounts($order)
+            );
+        } catch (\Exception $e) {
+            \Sentry\withScope(function (Scope $scope) use ($order, $e): void {
+                $scope->setExtra('order_id', $order->id);
+                $scope->setExtra('order_total', $order->total);
+                \Sentry\captureException($e);
+            });
+
+            return response()->json([
+                'message' => 'Error calculating discounts',
+                'error' => $e->getMessage()
+            ], 422);
+        }
     }
 }

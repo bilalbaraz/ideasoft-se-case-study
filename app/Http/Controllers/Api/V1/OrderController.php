@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\Order\UpdateOrderRequest;
 use App\Models\Order;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
+use Sentry\State\Scope;
 
 class OrderController extends Controller
 {
@@ -39,6 +40,11 @@ class OrderController extends Controller
                 'message' => 'Order created successfully'
             ], 201);
         } catch (\Exception $e) {
+            \Sentry\withScope(function (Scope $scope) use ($request, $e): void {
+                $scope->setExtra('request_data', $request->validated());
+                \Sentry\captureException($e);
+            });
+
             return response()->json([
                 'message' => 'Error creating order',
                 'error' => $e->getMessage()
@@ -69,6 +75,12 @@ class OrderController extends Controller
                 'message' => 'Order updated successfully'
             ]);
         } catch (\Exception $e) {
+            \Sentry\withScope(function (Scope $scope) use ($request, $order, $e): void {
+                $scope->setExtra('request_data', $request->validated());
+                $scope->setExtra('order_id', $order->id);
+                \Sentry\captureException($e);
+            });
+
             return response()->json([
                 'message' => 'Error updating order',
                 'error' => $e->getMessage()
@@ -88,6 +100,11 @@ class OrderController extends Controller
                 'message' => 'Order deleted successfully'
             ]);
         } catch (\Exception $e) {
+            \Sentry\withScope(function (Scope $scope) use ($order, $e): void {
+                $scope->setExtra('order_id', $order->id);
+                \Sentry\captureException($e);
+            });
+
             return response()->json([
                 'message' => 'Error deleting order',
                 'error' => $e->getMessage()
