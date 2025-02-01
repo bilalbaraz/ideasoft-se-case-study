@@ -41,9 +41,19 @@ services:
     networks:
       - ideasoft-network
 
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ideasoft-network
+
 networks:
   ideasoft-network:
     driver: bridge
 
 volumes:
   dbdata:
+  redis-data:

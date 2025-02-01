@@ -6,7 +6,9 @@ use App\Models\Order;
 use App\Repositories\Contracts\OrderRepositoryInterface;
 use App\Services\ProductService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class OrderService
@@ -22,7 +24,19 @@ class OrderService
      */
     public function getAllOrders(): Collection
     {
-        return $this->orderRepository->getAllWithRelations();
+        try {
+            return Cache::store('redis')->remember('orders.all', 60 * 5, function () {
+                return $this->orderRepository->getAllWithRelations();
+            });
+        } catch (\Exception $e) {
+            Log::warning('Redis cache failed, falling back to database cache', [
+                'error' => $e->getMessage()
+            ]);
+
+            return Cache::store('database')->remember('orders.all', 60 * 5, function () {
+                return $this->orderRepository->getAllWithRelations();
+            });
+        }
     }
 
     /**
@@ -30,7 +44,20 @@ class OrderService
      */
     public function getOrder(Order $order): Order
     {
-        return $this->orderRepository->findWithRelations($order);
+        try {
+            return Cache::store('redis')->remember('orders.' . $order->id, 60 * 5, function () use ($order) {
+                return $this->orderRepository->findWithRelations($order);
+            });
+        } catch (\Exception $e) {
+            Log::warning('Redis cache failed, falling back to database cache', [
+                'error' => $e->getMessage(),
+                'order_id' => $order->id
+            ]);
+
+            return Cache::store('database')->remember('orders.' . $order->id, 60 * 5, function () use ($order) {
+                return $this->orderRepository->findWithRelations($order);
+            });
+        }
     }
 
     /**
@@ -57,7 +84,19 @@ class OrderService
             $this->orderRepository->updateTotal($order);
 
             // Load relationships
-            return $this->orderRepository->findWithRelations($order);
+            $order = $this->orderRepository->findWithRelations($order);
+
+            // Flush cache
+            try {
+                Cache::store('redis')->tags(['orders'])->flush();
+            } catch (\Exception $e) {
+                Log::warning('Redis cache clear failed, falling back to database cache', [
+                    'error' => $e->getMessage()
+                ]);
+                Cache::store('database')->tags(['orders'])->flush();
+            }
+
+            return $order;
         });
     }
 
@@ -85,7 +124,21 @@ class OrderService
             $this->orderRepository->updateTotal($order);
 
             // Load relationships
-            return $this->orderRepository->findWithRelations($order);
+            $order = $this->orderRepository->findWithRelations($order);
+
+            // Flush cache
+            try {
+                Cache::store('redis')->forget('orders.' . $order->id);
+                Cache::store('redis')->tags(['orders'])->flush();
+            } catch (\Exception $e) {
+                Log::warning('Redis cache clear failed, falling back to database cache', [
+                    'error' => $e->getMessage()
+                ]);
+                Cache::store('database')->forget('orders.' . $order->id);
+                Cache::store('database')->tags(['orders'])->flush();
+            }
+
+            return $order;
         });
     }
 
@@ -99,7 +152,21 @@ class OrderService
             $this->restoreProductStocks($order);
 
             // Delete order
-            return $this->orderRepository->delete($order);
+            $result = $this->orderRepository->delete($order);
+
+            // Flush cache
+            try {
+                Cache::store('redis')->forget('orders.' . $order->id);
+                Cache::store('redis')->tags(['orders'])->flush();
+            } catch (\Exception $e) {
+                Log::warning('Redis cache clear failed, falling back to database cache', [
+                    'error' => $e->getMessage()
+                ]);
+                Cache::store('database')->forget('orders.' . $order->id);
+                Cache::store('database')->tags(['orders'])->flush();
+            }
+
+            return $result;
         });
     }
 
