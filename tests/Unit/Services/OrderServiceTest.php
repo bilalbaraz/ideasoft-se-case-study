@@ -10,6 +10,7 @@ use App\Repositories\Contracts\OrderRepositoryInterface;
 use App\Services\OrderService;
 use App\Services\ProductService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Mockery;
@@ -44,9 +45,15 @@ class OrderServiceTest extends TestCase
     {
         // Arrange
         $collection = new Collection([new Order()]);
+        
+        // Mock repository
         $this->orderRepository->shouldReceive('getAllWithRelations')
             ->once()
             ->andReturn($collection);
+
+        // Clear cache to ensure fresh data
+        Cache::store('redis')->flush();
+        Cache::store('database')->flush();
 
         // Act
         $result = $this->service->getAllOrders();
@@ -299,5 +306,54 @@ class OrderServiceTest extends TestCase
 
         // Act
         $this->service->createOrder($data);
+    }
+
+    public function test_get_all_orders_uses_redis_cache(): void
+    {
+        // Arrange
+        $collection = new Collection([new Order()]);
+        
+        // Mock repository
+        $this->orderRepository->shouldReceive('getAllWithRelations')
+            ->once() // Should be called only once due to caching
+            ->andReturn($collection);
+
+        // Clear cache
+        Cache::store('redis')->flush();
+
+        // Act
+        $result1 = $this->service->getAllOrders(); // First call should hit the repository
+        $result2 = $this->service->getAllOrders(); // Second call should hit the cache
+
+        // Assert
+        $this->assertInstanceOf(Collection::class, $result1);
+        $this->assertInstanceOf(Collection::class, $result2);
+        $this->assertCount(1, $result1);
+        $this->assertCount(1, $result2);
+    }
+
+    public function test_get_all_orders_falls_back_to_database_cache(): void
+    {
+        // Arrange
+        $collection = new Collection([new Order()]);
+        
+        // Mock repository
+        $this->orderRepository->shouldReceive('getAllWithRelations')
+            ->once() // Should be called only once due to caching
+            ->andReturn($collection);
+
+        // Clear cache
+        Cache::store('database')->flush();
+
+        // Mock Redis to throw exception
+        Cache::store('redis')->shouldReceive('remember')
+            ->andThrow(new \Exception('Redis connection failed'));
+
+        // Act
+        $result = $this->service->getAllOrders();
+
+        // Assert
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertCount(1, $result);
     }
 }

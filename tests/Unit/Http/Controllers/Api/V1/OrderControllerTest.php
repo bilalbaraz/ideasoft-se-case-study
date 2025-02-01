@@ -199,15 +199,14 @@ class OrderControllerTest extends TestCase
         // Mock StoreOrderRequest
         $request = Mockery::mock(StoreOrderRequest::class);
         $request->shouldReceive('validated')
-            ->once()
+            ->twice() // Called in both try and catch blocks
             ->andReturn($requestData);
-
-        $errorMessage = 'Failed to create order due to insufficient stock';
         
+        // Mock OrderService to throw exception
         $this->orderService->shouldReceive('createOrder')
             ->once()
             ->with($requestData)
-            ->andThrow(new \Exception($errorMessage));
+            ->andThrow(new \Exception('Failed to create order'));
 
         // Act
         $response = $this->orderController->store($request);
@@ -216,7 +215,7 @@ class OrderControllerTest extends TestCase
         $this->assertEquals(422, $response->status());
         $responseData = $response->getData(true);
         $this->assertEquals('Error creating order', $responseData['message']);
-        $this->assertEquals($errorMessage, $responseData['error']);
+        $this->assertEquals('Failed to create order', $responseData['error']);
     }
 
     public function test_update_handles_exception(): void
@@ -237,15 +236,14 @@ class OrderControllerTest extends TestCase
         // Mock UpdateOrderRequest
         $request = Mockery::mock(UpdateOrderRequest::class);
         $request->shouldReceive('validated')
-            ->once()
+            ->twice() // Called in both try and catch blocks
             ->andReturn($requestData);
-
-        $errorMessage = 'Failed to update order due to insufficient stock';
         
+        // Mock OrderService to throw exception
         $this->orderService->shouldReceive('updateOrder')
             ->once()
             ->with($order, $requestData)
-            ->andThrow(new \Exception($errorMessage));
+            ->andThrow(new \Exception('Failed to update order'));
 
         // Act
         $response = $this->orderController->update($request, $order);
@@ -254,7 +252,7 @@ class OrderControllerTest extends TestCase
         $this->assertEquals(422, $response->status());
         $responseData = $response->getData(true);
         $this->assertEquals('Error updating order', $responseData['message']);
-        $this->assertEquals($errorMessage, $responseData['error']);
+        $this->assertEquals('Failed to update order', $responseData['error']);
     }
 
     public function test_destroy_handles_exception(): void
