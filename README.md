@@ -246,6 +246,56 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
    - deleted_at (soft delete)
    - timestamps
 
+## Önbellek Sistemi
+
+Uygulama, Redis'i birincil önbellek ve veritabanını yedek olarak kullanan iki katmanlı bir önbellek sistemine sahiptir:
+
+### Redis Yapılandırması
+
+1. `.env` dosyanızda aşağıdaki ortam değişkenlerini ayarlayın:
+```env
+CACHE_DRIVER=redis
+CACHE_STORE=redis
+REDIS_CACHE_CONNECTION=default
+
+REDIS_CLIENT=predis
+REDIS_HOST=redis-sunucunuz
+REDIS_PASSWORD=redis-şifreniz
+REDIS_PORT=redis-portunuz
+```
+
+2. Redis Cloud kullanıcıları için önemli notlar:
+   - `predis` client kullanılmalıdır
+   - Veritabanı indeksi her zaman `0` olmalıdır
+   - Bağlantı zaman aşımı 60 saniye olarak ayarlanmıştır
+
+### Yedekleme Mekanizması
+
+- Sistem öncelikle Redis'i önbellekleme için kullanmaya çalışır
+- Redis kullanılamıyorsa veya başarısız olursa, otomatik olarak veritabanı önbelleklemesine geçer
+- Her yanıt, veri kaynağını gösteren meta bilgisi içerir:
+  ```json
+  {
+    "data": { },
+    "meta": {
+      "source": "redis-cache|database-cached-to-redis|database-cached-to-db",
+      "cached_at": "zaman_damgası"
+    }
+  }
+  ```
+
+### Önbellek Yönetimi
+
+Uygulama önbelleğini temizleme:
+```bash
+php artisan cache:clear
+```
+
+Yapılandırma önbelleğini temizleme:
+```bash
+php artisan config:clear
+```
+
 ## Roadmap
 
 Projenin öncelikli geliştirme planı:
