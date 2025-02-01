@@ -22,7 +22,6 @@ class CustomerFactory extends Factory
         return [
             'name' => $this->faker->name(),
             'since' => $this->faker->dateTimeBetween('-2 years', 'now'),
-            'revenue' => $this->faker->randomFloat(2, 0, 10000),
             'created_at' => $this->faker->dateTimeBetween('-1 year', 'now'),
             'updated_at' => function (array $attributes) {
                 return $attributes['created_at'];

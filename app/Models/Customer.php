@@ -14,12 +14,10 @@ class Customer extends Model
     protected $fillable = [
         'name',
         'since',
-        'revenue'
     ];
 
     protected $casts = [
         'since' => 'date',
-        'revenue' => 'decimal:2'
     ];
 
     /**

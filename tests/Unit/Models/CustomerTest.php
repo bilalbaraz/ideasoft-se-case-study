@@ -18,7 +18,6 @@ class CustomerTest extends TestCase
         $this->assertEquals([
             'name',
             'since',
-            'revenue'
         ], $customer->getFillable());
     }
 
@@ -29,7 +28,6 @@ class CustomerTest extends TestCase
         $this->assertEquals([
             'id' => 'integer',
             'since' => 'date',
-            'revenue' => 'decimal:2',
             'deleted_at' => 'datetime'
         ], $customer->getCasts());
     }
@@ -60,7 +58,6 @@ class CustomerTest extends TestCase
         $data = [
             'name' => 'John Doe',
             'since' => '2024-01-01',
-            'revenue' => 1000.50
         ];
 
         $customer = Customer::create($data);
@@ -68,6 +65,5 @@ class CustomerTest extends TestCase
         $this->assertInstanceOf(Customer::class, $customer);
         $this->assertEquals($data['name'], $customer->name);
         $this->assertEquals($data['since'], $customer->since->format('Y-m-d'));
-        $this->assertEquals($data['revenue'], $customer->revenue);
     }
 }
