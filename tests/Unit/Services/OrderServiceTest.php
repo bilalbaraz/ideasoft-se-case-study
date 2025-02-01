@@ -425,4 +425,346 @@ class OrderServiceTest extends TestCase
                 'error' => 'Redis connection failed'
             ]);
     }
+
+    public function test_get_order_uses_redis_cache(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+        
+        // Mock repository - should be called only once for cache miss
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->with($order)
+            ->andReturn($order);
+
+        // Mock Redis cache
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturnSelf();
+
+        // First call should execute closure (cache miss)
+        Cache::shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return $callback() instanceof Order;
+            })
+            ->andReturn($order)
+            ->ordered();
+
+        // Second call should return cached value (cache hit)
+        Cache::shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return true; // Don't execute callback on cache hit
+            })
+            ->andReturn($order)
+            ->ordered();
+
+        // Act
+        $result1 = $this->service->getOrder($order); // First call should hit repository
+        $result2 = $this->service->getOrder($order); // Second call should hit cache
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result1);
+        $this->assertInstanceOf(Order::class, $result2);
+    }
+
+    public function test_get_order_falls_back_to_database_cache(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+        
+        // Mock repository - should be called only once for database cache miss
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->with($order)
+            ->andReturn($order);
+
+        // Create Redis mock that throws exception
+        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
+        $redisMock->shouldReceive('remember')
+            ->twice()
+            ->andThrow(new \Exception('Redis connection failed'));
+
+        // Create Database mock
+        $databaseMock = Mockery::mock('Illuminate\Cache\Repository');
+        $databaseMock->shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return $callback() instanceof Order;
+            })
+            ->andReturn($order)
+            ->ordered();
+        $databaseMock->shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return true; // Don't execute callback on cache hit
+            })
+            ->andReturn($order)
+            ->ordered();
+
+        // Setup Cache facade
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturn($redisMock);
+        Cache::shouldReceive('store')
+            ->with('database')
+            ->twice()
+            ->andReturn($databaseMock);
+
+        // Act
+        $result1 = $this->service->getOrder($order); // Redis fails -> Database miss -> Repository
+        $result2 = $this->service->getOrder($order); // Redis fails -> Database hit
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result1);
+        $this->assertInstanceOf(Order::class, $result2);
+
+        // Log warning should have been called for Redis failures
+        Log::shouldHaveReceived('warning')
+            ->twice()
+            ->with('Redis cache failed, falling back to database cache', [
+                'error' => 'Redis connection failed',
+                'order_id' => 1
+            ]);
+    }
+
+    public function test_create_order_handles_redis_cache_failure(): void
+    {
+        // Arrange
+        $customer = new Customer();
+        $customer->id = 1;
+        $product = new Product();
+        $product->id = 1;
+        $product->price = 100;
+        $order = new Order();
+        $order->customer_id = $customer->id;
+
+        $data = [
+            'customer_id' => $customer->id,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')->once()->andReturnUsing(fn($callback) => $callback());
+        
+        // Mock repository methods
+        $this->orderRepository->shouldReceive('create')->once()->andReturn($order);
+        $this->orderRepository->shouldReceive('createOrderItems')->once();
+        $this->orderRepository->shouldReceive('updateTotal')->once();
+        $this->orderRepository->shouldReceive('findWithRelations')->once()->andReturn($order);
+
+        // Mock product service methods
+        $this->productService->shouldReceive('getProduct')->once()->andReturn($product);
+        $this->productService->shouldReceive('validateStock')->once();
+        $this->productService->shouldReceive('decreaseStock')->once();
+
+        // Mock Redis cache to throw exception
+        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
+        $redisMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
+        $redisMock->shouldReceive('flush')->once()->andThrow(new \Exception('Redis connection failed'));
+
+        // Mock Database cache
+        $databaseMock = Mockery::mock('Illuminate\Cache\Repository');
+        $databaseMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
+        $databaseMock->shouldReceive('flush')->once();
+
+        // Setup Cache facade
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andReturn($redisMock);
+        Cache::shouldReceive('store')
+            ->with('database')
+            ->once()
+            ->andReturn($databaseMock);
+
+        // Act
+        $result = $this->service->createOrder($data);
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result);
+
+        // Log warning should have been called for Redis failure
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Redis cache clear failed, falling back to database cache', [
+                'error' => 'Redis connection failed'
+            ]);
+    }
+
+    public function test_update_order_handles_redis_cache_failure(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+        $product = new Product();
+        $product->id = 1;
+        $product->price = 100;
+
+        $data = [
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')->once()->andReturnUsing(fn($callback) => $callback());
+        
+        // Mock repository methods
+        $this->orderRepository->shouldReceive('deleteOrderItems')->once();
+        $this->orderRepository->shouldReceive('createOrderItems')->once();
+        $this->orderRepository->shouldReceive('updateTotal')->once();
+        $this->orderRepository->shouldReceive('findWithRelations')->once()->andReturn($order);
+
+        // Mock product service methods
+        $this->productService->shouldReceive('getProduct')->once()->andReturn($product);
+        $this->productService->shouldReceive('validateStock')->once();
+        $this->productService->shouldReceive('decreaseStock')->once();
+
+        // Mock Redis cache to throw exception
+        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
+        $redisMock->shouldReceive('forget')->once()->with('orders.1')->andThrow(new \Exception('Redis connection failed'));
+        $redisMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
+        $redisMock->shouldReceive('flush')->once()->andThrow(new \Exception('Redis connection failed'));
+
+        // Mock Database cache
+        $databaseMock = Mockery::mock('Illuminate\Cache\Repository');
+        $databaseMock->shouldReceive('forget')->once()->with('orders.1');
+        $databaseMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
+        $databaseMock->shouldReceive('flush')->once();
+
+        // Setup Cache facade
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturn($redisMock);
+        Cache::shouldReceive('store')
+            ->with('database')
+            ->twice()
+            ->andReturn($databaseMock);
+
+        // Act
+        $result = $this->service->updateOrder($order, $data);
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result);
+
+        // Log warning should have been called for Redis failure
+        Log::shouldHaveReceived('warning')
+            ->twice()
+            ->with('Redis cache clear failed, falling back to database cache', [
+                'error' => 'Redis connection failed'
+            ]);
+    }
+
+    public function test_delete_order_handles_redis_cache_failure(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+        $product = new Product();
+        $orderItem = new OrderItem();
+        $orderItem->quantity = 2;
+        $orderItem->product = $product;
+        
+        $order->items = new Collection([$orderItem]);
+
+        DB::shouldReceive('transaction')->once()->andReturnUsing(fn($callback) => $callback());
+        
+        // Mock repository and product service
+        $this->productService->shouldReceive('increaseStock')->once();
+        $this->orderRepository->shouldReceive('delete')->once()->andReturn(true);
+
+        // Mock Redis cache to throw exception
+        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
+        $redisMock->shouldReceive('forget')->once()->with('orders.1')->andThrow(new \Exception('Redis connection failed'));
+        $redisMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
+        $redisMock->shouldReceive('flush')->once()->andThrow(new \Exception('Redis connection failed'));
+
+        // Mock Database cache
+        $databaseMock = Mockery::mock('Illuminate\Cache\Repository');
+        $databaseMock->shouldReceive('forget')->once()->with('orders.1');
+        $databaseMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
+        $databaseMock->shouldReceive('flush')->once();
+
+        // Setup Cache facade
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturn($redisMock);
+        Cache::shouldReceive('store')
+            ->with('database')
+            ->twice()
+            ->andReturn($databaseMock);
+
+        // Act
+        $result = $this->service->deleteOrder($order);
+
+        // Assert
+        $this->assertTrue($result);
+
+        // Log warning should have been called for Redis failures
+        Log::shouldHaveReceived('warning')
+            ->twice()
+            ->with('Redis cache clear failed, falling back to database cache', [
+                'error' => 'Redis connection failed'
+            ]);
+    }
+
+    public function test_update_order_throws_validation_exception_when_stock_is_invalid(): void
+    {
+        // Arrange
+        $order = new Order();
+        $product = new Product();
+        $product->id = 1;
+        $product->name = 'Test Product';
+
+        $data = [
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                return $callback();
+            });
+
+        $this->orderRepository->shouldReceive('deleteOrderItems')
+            ->once()
+            ->with($order);
+
+        $this->productService->shouldReceive('getProduct')
+            ->once()
+            ->with($product->id)
+            ->andReturn($product);
+
+        $this->productService->shouldReceive('validateStock')
+            ->once()
+            ->with($product, 2)
+            ->andThrow(ValidationException::withMessages([
+                'items' => ["Product Test Product does not have enough stock"]
+            ]));
+
+        // Assert
+        $this->expectException(ValidationException::class);
+
+        // Act
+        $this->service->updateOrder($order, $data);
+    }
 }
