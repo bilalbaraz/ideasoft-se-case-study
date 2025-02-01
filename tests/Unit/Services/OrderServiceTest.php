@@ -632,22 +632,35 @@ class OrderServiceTest extends TestCase
         $this->productService->shouldReceive('validateStock')->once();
         $this->productService->shouldReceive('decreaseStock')->once();
 
-        // Mock Redis cache to throw exception
-        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
-        $redisMock->shouldReceive('forget')->once()->with('orders.1')->andThrow(new \Exception('Redis connection failed'));
-        $redisMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
-        $redisMock->shouldReceive('flush')->once()->andThrow(new \Exception('Redis connection failed'));
+        // Mock Redis cache to throw exception for forget operation
+        $redisTagsMock = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTagsMock->shouldReceive('flush')->never(); // Should not be called due to earlier exception
 
-        // Mock Database cache
+        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
+        $redisMock->shouldReceive('forget')
+            ->once()
+            ->with('orders.1')
+            ->andThrow(new \Exception('Redis connection failed'));
+        $redisMock->shouldReceive('tags')
+            ->never(); // Should not be called due to earlier exception
+
+        // Mock Database cache for both operations
+        $databaseTagsMock = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $databaseTagsMock->shouldReceive('flush')->once();
+
         $databaseMock = Mockery::mock('Illuminate\Cache\Repository');
-        $databaseMock->shouldReceive('forget')->once()->with('orders.1');
-        $databaseMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
-        $databaseMock->shouldReceive('flush')->once();
+        $databaseMock->shouldReceive('forget')
+            ->once()
+            ->with('orders.1');
+        $databaseMock->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($databaseTagsMock);
 
         // Setup Cache facade
         Cache::shouldReceive('store')
             ->with('redis')
-            ->twice()
+            ->once()
             ->andReturn($redisMock);
         Cache::shouldReceive('store')
             ->with('database')
@@ -660,9 +673,9 @@ class OrderServiceTest extends TestCase
         // Assert
         $this->assertInstanceOf(Order::class, $result);
 
-        // Log warning should have been called for Redis failure
+        // Log warning should have been called once for Redis failure
         Log::shouldHaveReceived('warning')
-            ->twice()
+            ->once()
             ->with('Redis cache clear failed, falling back to database cache', [
                 'error' => 'Redis connection failed'
             ]);
@@ -686,22 +699,35 @@ class OrderServiceTest extends TestCase
         $this->productService->shouldReceive('increaseStock')->once();
         $this->orderRepository->shouldReceive('delete')->once()->andReturn(true);
 
-        // Mock Redis cache to throw exception
-        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
-        $redisMock->shouldReceive('forget')->once()->with('orders.1')->andThrow(new \Exception('Redis connection failed'));
-        $redisMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
-        $redisMock->shouldReceive('flush')->once()->andThrow(new \Exception('Redis connection failed'));
+        // Mock Redis cache to throw exception for forget operation
+        $redisTagsMock = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTagsMock->shouldReceive('flush')->never(); // Should not be called due to earlier exception
 
-        // Mock Database cache
+        $redisMock = Mockery::mock('Illuminate\Cache\Repository');
+        $redisMock->shouldReceive('forget')
+            ->once()
+            ->with('orders.1')
+            ->andThrow(new \Exception('Redis connection failed'));
+        $redisMock->shouldReceive('tags')
+            ->never(); // Should not be called due to earlier exception
+
+        // Mock Database cache for both operations
+        $databaseTagsMock = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $databaseTagsMock->shouldReceive('flush')->once();
+
         $databaseMock = Mockery::mock('Illuminate\Cache\Repository');
-        $databaseMock->shouldReceive('forget')->once()->with('orders.1');
-        $databaseMock->shouldReceive('tags')->once()->with(['orders'])->andReturnSelf();
-        $databaseMock->shouldReceive('flush')->once();
+        $databaseMock->shouldReceive('forget')
+            ->once()
+            ->with('orders.1');
+        $databaseMock->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($databaseTagsMock);
 
         // Setup Cache facade
         Cache::shouldReceive('store')
             ->with('redis')
-            ->twice()
+            ->once()
             ->andReturn($redisMock);
         Cache::shouldReceive('store')
             ->with('database')
@@ -714,9 +740,9 @@ class OrderServiceTest extends TestCase
         // Assert
         $this->assertTrue($result);
 
-        // Log warning should have been called for Redis failures
+        // Log warning should have been called once for Redis failure
         Log::shouldHaveReceived('warning')
-            ->twice()
+            ->once()
             ->with('Redis cache clear failed, falling back to database cache', [
                 'error' => 'Redis connection failed'
             ]);
