@@ -171,4 +171,27 @@ class DiscountControllerTest extends TestCase
         $this->assertEquals(200, $response->status());
         $this->assertEquals($expectedResponse, $response->getData(true));
     }
+
+    public function test_calculate_handles_exception(): void
+    {
+        // Arrange
+        $order = Order::factory()->create();
+        
+        $errorMessage = 'Failed to calculate discounts';
+        
+        // Mock service to throw exception
+        $this->discountService->shouldReceive('calculateDiscounts')
+            ->once()
+            ->with($order)
+            ->andThrow(new \Exception($errorMessage));
+
+        // Act
+        $response = $this->discountController->calculate($order);
+
+        // Assert
+        $this->assertEquals(422, $response->status());
+        $responseData = $response->getData(true);
+        $this->assertEquals('Error calculating discounts', $responseData['message']);
+        $this->assertEquals($errorMessage, $responseData['error']);
+    }
 }

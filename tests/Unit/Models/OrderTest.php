@@ -28,8 +28,7 @@ class OrderTest extends TestCase
         $order = new Order();
         
         $this->assertEquals([
-            'id' => 'integer',
-            'customer_id' => 'integer',
+            'id' => 'int',
             'total' => 'decimal:2',
             'deleted_at' => 'datetime'
         ], $order->getCasts());

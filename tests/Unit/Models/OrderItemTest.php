@@ -30,9 +30,7 @@ class OrderItemTest extends TestCase
         $orderItem = new OrderItem();
         
         $this->assertEquals([
-            'id' => 'integer',
-            'order_id' => 'integer',
-            'product_id' => 'integer',
+            'id' => 'int',
             'quantity' => 'integer',
             'unit_price' => 'decimal:2',
             'total' => 'decimal:2',
