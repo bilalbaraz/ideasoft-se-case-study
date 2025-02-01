@@ -51,9 +51,17 @@ class OrderServiceTest extends TestCase
             ->once()
             ->andReturn($collection);
 
-        // Clear cache to ensure fresh data
-        Cache::store('redis')->flush();
-        Cache::store('database')->flush();
+        // Mock Redis cache to execute the closure
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andReturnSelf();
+        Cache::shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return $callback() instanceof Collection;
+            })
+            ->andReturn($collection);
 
         // Act
         $result = $this->service->getAllOrders();
@@ -318,8 +326,17 @@ class OrderServiceTest extends TestCase
             ->once() // Should be called only once due to caching
             ->andReturn($collection);
 
-        // Clear cache
-        Cache::store('redis')->flush();
+        // Mock Redis cache
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturnSelf();
+        Cache::shouldReceive('remember')
+            ->twice()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return $callback() instanceof Collection;
+            })
+            ->andReturn($collection);
 
         // Act
         $result1 = $this->service->getAllOrders(); // First call should hit the repository
@@ -342,12 +359,29 @@ class OrderServiceTest extends TestCase
             ->once() // Should be called only once due to caching
             ->andReturn($collection);
 
-        // Clear cache
-        Cache::store('database')->flush();
-
-        // Mock Redis to throw exception
-        Cache::store('redis')->shouldReceive('remember')
+        // Mock Redis cache to throw exception
+        Cache::shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andReturnSelf();
+        Cache::shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return true; // We'll throw exception anyway
+            })
             ->andThrow(new \Exception('Redis connection failed'));
+
+        // Mock database cache
+        Cache::shouldReceive('store')
+            ->with('database')
+            ->once()
+            ->andReturnSelf();
+        Cache::shouldReceive('remember')
+            ->once()
+            ->withArgs(function ($key, $ttl, $callback) {
+                return $callback() instanceof Collection;
+            })
+            ->andReturn($collection);
 
         // Act
         $result = $this->service->getAllOrders();
