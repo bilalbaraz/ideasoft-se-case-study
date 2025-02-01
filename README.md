@@ -83,7 +83,7 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
 
 #### List Orders
 - **GET** `/api/v1/orders`
-- **Description**: Tüm siparişleri listele
+- **Açıklama**: Tüm siparişleri listele
 - **Response**:
 ```json
 {
@@ -96,7 +96,8 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
             "updated_at": "2024-01-30T10:00:00.000000Z",
             "customer": {
                 "id": 1,
-                "name": "John Doe"
+                "name": "John Doe",
+                "since": "2024-01-30T10:00:00.000000Z"
             },
             "items": [
                 {
@@ -108,7 +109,10 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
                     "total": 1000.00,
                     "product": {
                         "id": 1,
-                        "name": "Product 1"
+                        "name": "Product 1",
+                        "category_id": 1,
+                        "price": 500.00,
+                        "stock": 8
                     }
                 }
             ]
@@ -119,12 +123,45 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
 
 #### Get Order
 - **GET** `/api/v1/orders/{id}`
-- **Description**: Belirli bir siparişi getir
-- **Response**: Tek bir sipariş objesi
+- **Açıklama**: Belirli bir siparişi getir
+- **Response**:
+```json
+{
+    "data": {
+        "id": 1,
+        "customer_id": 1,
+        "total": 1500.00,
+        "created_at": "2024-01-30T10:00:00.000000Z",
+        "updated_at": "2024-01-30T10:00:00.000000Z",
+        "customer": {
+            "id": 1,
+            "name": "John Doe",
+            "since": "2024-01-30T10:00:00.000000Z"
+        },
+        "items": [
+            {
+                "id": 1,
+                "order_id": 1,
+                "product_id": 1,
+                "quantity": 2,
+                "unit_price": 500.00,
+                "total": 1000.00,
+                "product": {
+                    "id": 1,
+                    "name": "Product 1",
+                    "category_id": 1,
+                    "price": 500.00,
+                    "stock": 8
+                }
+            }
+        ]
+    }
+}
+```
 
 #### Create Order
 - **POST** `/api/v1/orders`
-- **Description**: Yeni sipariş oluştur
+- **Açıklama**: Yeni sipariş oluştur
 - **Request Body**:
 ```json
 {
@@ -141,11 +178,53 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
     ]
 }
 ```
-- **Response**: Oluşturulan sipariş objesi ve başarı mesajı
+- **Response**:
+```json
+{
+    "data": {
+        "id": 1,
+        "customer_id": 1,
+        "total": 1500.00,
+        "created_at": "2024-01-30T10:00:00.000000Z",
+        "updated_at": "2024-01-30T10:00:00.000000Z",
+        "customer": {
+            "id": 1,
+            "name": "John Doe",
+            "since": "2024-01-30T10:00:00.000000Z"
+        },
+        "items": [
+            {
+                "id": 1,
+                "order_id": 1,
+                "product_id": 1,
+                "quantity": 2,
+                "unit_price": 500.00,
+                "total": 1000.00,
+                "product": {
+                    "id": 1,
+                    "name": "Product 1",
+                    "category_id": 1,
+                    "price": 500.00,
+                    "stock": 8
+                }
+            }
+        ]
+    },
+    "message": "Order created successfully"
+}
+```
+
+- **Error Response**:
+```json
+{
+    "message": "Error creating order",
+    "error": "Insufficient stock for product 1"
+}
+```
 
 #### Update Order
 - **PUT** `/api/v1/orders/{id}`
-- **Description**: Siparişi güncelle
+- **Açıklama**: Siparişi güncelle
 - **Request Body**:
 ```json
 {
@@ -161,39 +240,117 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
     ]
 }
 ```
-- **Response**: Güncellenen sipariş objesi ve başarı mesajı
+- **Response**:
+```json
+{
+    "data": {
+        "id": 1,
+        "customer_id": 1,
+        "total": 2500.00,
+        "created_at": "2024-01-30T10:00:00.000000Z",
+        "updated_at": "2024-01-30T10:00:00.000000Z",
+        "customer": {
+            "id": 1,
+            "name": "John Doe",
+            "since": "2024-01-30T10:00:00.000000Z"
+        },
+        "items": [
+            {
+                "id": 2,
+                "order_id": 1,
+                "product_id": 1,
+                "quantity": 3,
+                "unit_price": 500.00,
+                "total": 1500.00,
+                "product": {
+                    "id": 1,
+                    "name": "Product 1",
+                    "category_id": 1,
+                    "price": 500.00,
+                    "stock": 7
+                }
+            },
+            {
+                "id": 3,
+                "order_id": 1,
+                "product_id": 2,
+                "quantity": 2,
+                "unit_price": 500.00,
+                "total": 1000.00,
+                "product": {
+                    "id": 2,
+                    "name": "Product 2",
+                    "category_id": 1,
+                    "price": 500.00,
+                    "stock": 8
+                }
+            }
+        ]
+    },
+    "message": "Order updated successfully"
+}
+```
+
+- **Error Response**:
+```json
+{
+    "message": "Error updating order",
+    "error": "Insufficient stock for product 1"
+}
+```
 
 #### Delete Order
 - **DELETE** `/api/v1/orders/{id}`
-- **Description**: Siparişi sil
-- **Response**: Başarı mesajı
+- **Açıklama**: Siparişi sil
+- **Response**:
+```json
+{
+    "message": "Order deleted successfully"
+}
+```
+
+- **Error Response**:
+```json
+{
+    "message": "Error deleting order",
+    "error": "Order not found"
+}
+```
 
 #### Calculate Order Discount
 - **POST** `/api/v1/orders/{id}/calculate-discount`
-- **Description**: Sipariş indirimlerini hesapla
+- **Açıklama**: Sipariş indirimlerini hesapla
 - **Response**:
 ```json
 {
     "order_id": 1,
-    "subtotal": 1500.00,
+    "subtotal": 2500.00,
     "discounts": [
         {
             "type": "category",
             "category_id": 1,
-            "item_count": 8,
+            "item_count": 6,
             "discount_rate": "10%",
-            "amount": 80.00
+            "amount": 250.00
         },
         {
             "type": "total_amount",
             "min_amount": 1000,
-            "order_total": 1500.00,
+            "order_total": 2500.00,
             "discount_rate": "10%",
-            "amount": 150.00
+            "amount": 250.00
         }
     ],
-    "total_discount": 230.00,
-    "total": 1270.00
+    "total_discount": 500.00,
+    "total": 2000.00
+}
+```
+
+- **Error Response**:
+```json
+{
+    "message": "Error calculating discounts",
+    "error": "Order not found"
 }
 ```
 
@@ -216,7 +373,6 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
    - id (primary key)
    - name
    - since (date)
-   - revenue (decimal)
    - deleted_at (soft delete)
    - timestamps
 
