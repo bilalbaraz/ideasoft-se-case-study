@@ -8,10 +8,12 @@ use App\Repositories\Contracts\ProductRepositoryInterface;
 use App\Repositories\Eloquent\DiscountRepository;
 use App\Repositories\Eloquent\OrderRepository;
 use App\Repositories\Eloquent\ProductRepository;
+use App\Services\OrderService;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Psr\Log\LoggerInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +25,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(OrderRepositoryInterface::class, OrderRepository::class);
         $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
         $this->app->bind(DiscountRepositoryInterface::class, DiscountRepository::class);
+        
+        $this->app->when(OrderService::class)
+            ->needs(LoggerInterface::class)
+            ->give(function ($app) {
+                return $app['log'];
+            });
     }
 
     /**
