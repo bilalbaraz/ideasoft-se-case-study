@@ -365,6 +365,31 @@ MySQL veritabanına TablePlus veya benzeri bir araç ile bağlanmak için:
    - Sipariş toplamı 1000 TL ve üzeri olduğunda
    - Tüm sipariş tutarı üzerinden %10 indirim
 
+## Rate Limiting
+
+API endpointleri için rate limiting tanımlanmıştır. Limitler `AppServiceProvider@boot` metodunda tanımlanmıştır:
+
+```php
+// Sipariş işlemleri için rate limit
+RateLimiter::for('orders', function (Request $request) {
+    return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+});
+
+// İndirim hesaplama işlemleri için rate limit
+RateLimiter::for('discounts', function (Request $request) {
+    return Limit::perMinute(5)->by($request->user()?->id ?: $request->ip());
+});
+```
+
+Rate limit değerleri:
+- Sipariş işlemleri (`/api/v1/orders`): Dakikada 60 istek
+- İndirim hesaplama (`/api/v1/orders/{order}/calculate-discount`): Dakikada 5 istek
+
+Rate limit aşıldığında API 429 (Too Many Requests) HTTP status kodu ile yanıt verecektir. Response header'ında:
+- `X-RateLimit-Limit`: Toplam izin verilen istek sayısı
+- `X-RateLimit-Remaining`: Kalan istek sayısı
+- `Retry-After`: Yeni istekler için beklenecek süre (saniye)
+
 ## Veritabanı Şeması
 
 ### Tablolar
@@ -496,7 +521,6 @@ Projenin öncelikli geliştirme planı:
 
 2. **API Geliştirmeleri**
    - OpenAPI/Swagger dokümantasyonu
-   - Rate limiting ve request throttling
    - Bulk işlemler için endpointler
 
 3. **Ödeme Sistemi Entegrasyonu**
@@ -510,7 +534,6 @@ Projenin öncelikli geliştirme planı:
 
 5. **Monitoring & Logging**
    - Detaylı API loglama sistemi
-   - Performance monitoring
    - Business metrics tracking
 
 ## Test
@@ -523,4 +546,4 @@ docker compose exec -e XDEBUG_MODE=coverage app vendor/bin/phpunit --coverage-cl
 
 ## Lisans
 
-Bu proje [MIT lisansı](LICENSE) altında lisanslanmıştır.
+Bu proje [MIT lisansı](LICENSE.md) altında lisanslanmıştır.
