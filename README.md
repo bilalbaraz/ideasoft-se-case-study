@@ -452,6 +452,39 @@ Yapılandırma önbelleğini temizleme:
 php artisan config:clear
 ```
 
+## Laravel Telescope
+
+Laravel Telescope, uygulama performansını ve davranışını izlemek için kullanılan güçlü bir debug aracıdır.
+
+#### Erişim
+
+- Local: [http://localhost:8000/telescope](http://localhost:8000/telescope)
+- Production: [https://ideasoft.barazlab.com/telescope](https://ideasoft.barazlab.com/telescope)
+
+#### Konfigürasyon
+
+1. Telescope'u aktif/pasif yapmak için `.env` dosyasında:
+```
+TELESCOPE_ENABLED=true
+```
+
+2. Varsayılan olarak Telescope sadece local ortamda aktiftir. Production ortamında erişimi kısıtlamak için `app/Providers/TelescopeServiceProvider.php` dosyasında gate tanımlaması yapılmıştır:
+
+```php
+protected function gate(): void
+{
+    Gate::define('viewTelescope', function ($user = null) {
+        return in_array($_SERVER['REMOTE_ADDR'] ?? '', [
+            '127.0.0.1',
+            '::1',
+            // Production IP addresses
+        ]);
+    });
+}
+```
+
+3. Telescope verileri otomatik olarak temizlenir. Veri saklama süresi `config/telescope.php` dosyasından ayarlanabilir.
+
 ## Roadmap
 
 Projenin öncelikli geliştirme planı:
@@ -472,7 +505,6 @@ Projenin öncelikli geliştirme planı:
    - Webhook sistemi
 
 4. **Performans İyileştirmeleri**
-   - Cache sistemi implementasyonu
    - Database indexleme optimizasyonu
    - Query optimizasyonları
 
