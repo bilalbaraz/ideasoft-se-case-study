@@ -532,10 +532,6 @@ Projenin öncelikli geliştirme planı:
    - Database indexleme optimizasyonu
    - Query optimizasyonları
 
-5. **Monitoring & Logging**
-   - Detaylı API loglama sistemi
-   - Business metrics tracking
-
 ## Test
 
 Unit ve feature testlerini çalıştırmak için:
