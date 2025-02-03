@@ -287,7 +287,6 @@ class OrderServiceTest extends TestCase
     /**
      * @test
      * @covers \App\Services\OrderService::getOrder
-     * @covers \App\Services\OrderService::cacheResult
      */
     public function test_get_order_throws_exception_when_all_sources_fail(): void
     {
@@ -352,6 +351,306 @@ class OrderServiceTest extends TestCase
 
         // Act
         $this->service->getOrder($order);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::getOrder
+     */
+    public function test_get_order_continues_when_cache_write_fails(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+
+        // Mock Redis cache
+        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.1')
+            ->andReturnNull();
+        $redisTaggedCache->shouldReceive('put')
+            ->once()
+            ->with('orders.1', $order, 60 * 60)
+            ->andThrow(new \Exception('Cache write failed'));
+
+        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $redisStore->shouldReceive('tags')
+            ->twice()
+            ->with(['orders'])
+            ->andReturn($redisTaggedCache);
+
+        // Setup Cache facade
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturn($redisStore);
+
+        // Mock logger
+        $this->logger->shouldReceive('warning')
+            ->once()
+            ->with('Failed to write to cache', [
+                'store' => 'redis',
+                'exception' => 'Cache write failed'
+            ]);
+
+        // Mock repository
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->with($order)
+            ->andReturn($order);
+
+        // Act
+        $result = $this->service->getOrder($order);
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result);
+        $this->assertSame($order, $result);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::getOrder
+     */
+    public function test_get_order_continues_when_cache_store_not_found(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+
+        // Setup Cache facade to throw exception for store not found
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andThrow(new \Exception('Cache store not found: redis'));
+
+        // Mock logger
+        $this->logger->shouldReceive('warning')
+            ->once()
+            ->with('Failed to write to cache', [
+                'store' => 'redis',
+                'exception' => 'Cache store not found: redis'
+            ]);
+
+        // Mock repository
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->with($order)
+            ->andReturn($order);
+
+        // Act
+        $result = $this->service->getOrder($order);
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result);
+        $this->assertSame($order, $result);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::getAllOrders
+     */
+    public function test_get_all_orders_uses_redis_cache(): void
+    {
+        // Arrange
+        $orders = new Collection([new Order()]);
+
+        // Mock Redis cache for success
+        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.all')
+            ->andReturn($orders);
+
+        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $redisStore->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($redisTaggedCache);
+
+        // Setup Cache facade
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andReturn($redisStore);
+
+        // Repository should not be called since cache hit
+        $this->orderRepository->shouldNotReceive('findAllWithRelations');
+
+        // Act
+        $result = $this->service->getAllOrders();
+
+        // Assert
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertCount(1, $result);
+        $this->assertSame($orders, $result);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::getAllOrders
+     */
+    public function test_get_all_orders_falls_back_to_database_cache(): void
+    {
+        // Arrange
+        $orders = new Collection([new Order()]);
+
+        // Mock Redis cache to throw exception
+        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.all')
+            ->andThrow(new \Exception('Redis connection failed'));
+
+        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $redisStore->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($redisTaggedCache);
+
+        // Mock Database cache for success
+        $databaseTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $databaseTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.all')
+            ->andReturn($orders);
+
+        $databaseStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $databaseStore->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($databaseTaggedCache);
+
+        // Setup Cache facade
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andReturn($redisStore);
+        $this->cache->shouldReceive('store')
+            ->with('database')
+            ->once()
+            ->andReturn($databaseStore);
+
+        // Mock logger for Redis failure
+        $this->logger->shouldReceive('warning')
+            ->once()
+            ->with('Redis cache failed, falling back to database cache', [
+                'exception' => 'Redis connection failed'
+            ]);
+
+        // Repository should not be called since database cache hit
+        $this->orderRepository->shouldNotReceive('findAllWithRelations');
+
+        // Act
+        $result = $this->service->getAllOrders();
+
+        // Assert
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertCount(1, $result);
+        $this->assertSame($orders, $result);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::getAllOrders
+     */
+    public function test_get_all_orders_continues_when_cache_write_fails(): void
+    {
+        // Arrange
+        $orders = [
+            new Order(),
+            new Order()
+        ];
+
+        // Mock Redis cache
+        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.all')
+            ->andReturnNull();
+        $redisTaggedCache->shouldReceive('put')
+            ->once()
+            ->with('orders.all', $orders, 60 * 60)
+            ->andThrow(new \Exception('Cache write failed'));
+
+        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $redisStore->shouldReceive('tags')
+            ->twice()
+            ->with(['orders'])
+            ->andReturn($redisTaggedCache);
+
+        // Setup Cache facade
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturn($redisStore);
+
+        // Mock logger
+        $this->logger->shouldReceive('warning')
+            ->once()
+            ->with('Failed to write to cache', [
+                'store' => 'redis',
+                'exception' => 'Cache write failed'
+            ]);
+
+        // Mock repository
+        $this->orderRepository->shouldReceive('findAll')
+            ->once()
+            ->andReturn($orders);
+
+        // Act
+        $result = $this->service->getAllOrders();
+
+        // Assert
+        $this->assertCount(2, $result);
+        $this->assertSame($orders, $result);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::getOrder
+     */
+    public function test_get_order_writes_to_cache_successfully(): void
+    {
+        // Arrange
+        $order = new Order();
+        $order->id = 1;
+
+        // Mock Redis cache
+        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.1')
+            ->andReturnNull();
+        $redisTaggedCache->shouldReceive('put')
+            ->once()
+            ->with('orders.1', $order, 60 * 60)
+            ->andReturn(true);
+
+        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $redisStore->shouldReceive('tags')
+            ->twice()
+            ->with(['orders'])
+            ->andReturn($redisTaggedCache);
+
+        // Setup Cache facade
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->twice()
+            ->andReturn($redisStore);
+
+        // Mock repository
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->with($order)
+            ->andReturn($order);
+
+        // Act
+        $result = $this->service->getOrder($order);
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result);
+        $this->assertSame($order, $result);
     }
 
     /**
@@ -509,109 +808,5 @@ class OrderServiceTest extends TestCase
 
         // Act
         $this->service->createOrder($data);
-    }
-
-    /**
-     * @test
-     * @covers \App\Services\OrderService::getAllOrders
-     */
-    public function test_get_all_orders_uses_redis_cache(): void
-    {
-        // Arrange
-        $orders = new Collection([new Order()]);
-
-        // Mock Redis cache for success
-        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
-        $redisTaggedCache->shouldReceive('get')
-            ->once()
-            ->with('orders.all')
-            ->andReturn($orders);
-
-        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
-        $redisStore->shouldReceive('tags')
-            ->once()
-            ->with(['orders'])
-            ->andReturn($redisTaggedCache);
-
-        // Setup Cache facade
-        $this->cache->shouldReceive('store')
-            ->with('redis')
-            ->once()
-            ->andReturn($redisStore);
-
-        // Repository should not be called since cache hit
-        $this->orderRepository->shouldNotReceive('findAllWithRelations');
-
-        // Act
-        $result = $this->service->getAllOrders();
-
-        // Assert
-        $this->assertInstanceOf(Collection::class, $result);
-        $this->assertCount(1, $result);
-        $this->assertSame($orders, $result);
-    }
-
-    /**
-     * @test
-     * @covers \App\Services\OrderService::getAllOrders
-     */
-    public function test_get_all_orders_falls_back_to_database_cache(): void
-    {
-        // Arrange
-        $orders = new Collection([new Order()]);
-
-        // Mock Redis cache to throw exception
-        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
-        $redisTaggedCache->shouldReceive('get')
-            ->once()
-            ->with('orders.all')
-            ->andThrow(new \Exception('Redis connection failed'));
-
-        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
-        $redisStore->shouldReceive('tags')
-            ->once()
-            ->with(['orders'])
-            ->andReturn($redisTaggedCache);
-
-        // Mock Database cache for success
-        $databaseTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
-        $databaseTaggedCache->shouldReceive('get')
-            ->once()
-            ->with('orders.all')
-            ->andReturn($orders);
-
-        $databaseStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
-        $databaseStore->shouldReceive('tags')
-            ->once()
-            ->with(['orders'])
-            ->andReturn($databaseTaggedCache);
-
-        // Setup Cache facade
-        $this->cache->shouldReceive('store')
-            ->with('redis')
-            ->once()
-            ->andReturn($redisStore);
-        $this->cache->shouldReceive('store')
-            ->with('database')
-            ->once()
-            ->andReturn($databaseStore);
-
-        // Mock logger for Redis failure
-        $this->logger->shouldReceive('warning')
-            ->once()
-            ->with('Redis cache failed, falling back to database cache', [
-                'exception' => 'Redis connection failed'
-            ]);
-
-        // Repository should not be called since database cache hit
-        $this->orderRepository->shouldNotReceive('findAllWithRelations');
-
-        // Act
-        $result = $this->service->getAllOrders();
-
-        // Assert
-        $this->assertInstanceOf(Collection::class, $result);
-        $this->assertCount(1, $result);
-        $this->assertSame($orders, $result);
     }
 }
