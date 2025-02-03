@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Exceptions\OrderCreationException;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -10,9 +11,8 @@ use App\Repositories\Contracts\OrderRepositoryInterface;
 use App\Services\OrderService;
 use App\Services\ProductService;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\{DB, Log};
+use Illuminate\Support\MessageBag;
 use Illuminate\Validation\ValidationException;
 use Mockery;
 use Tests\TestCase;
@@ -424,11 +424,35 @@ class OrderServiceTest extends TestCase
             ->once()
             ->andThrow(new \Exception('Cache store not found: redis'));
 
+        // Mock database cache
+        $databaseTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $databaseTaggedCache->shouldReceive('get')
+            ->once()
+            ->with('orders.1')
+            ->andReturn(null);
+
+        $databaseStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $databaseStore->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($databaseTaggedCache);
+
+        $this->cache->shouldReceive('store')
+            ->with('database')
+            ->once()
+            ->andReturn($databaseStore);
+
         // Mock logger
         $this->logger->shouldReceive('warning')
             ->once()
             ->with('Failed to write to cache', [
                 'store' => 'redis',
+                'exception' => 'Cache store not found: redis'
+            ]);
+
+        $this->logger->shouldReceive('warning')
+            ->once()
+            ->with('Redis cache failed, falling back to database cache', [
                 'exception' => 'Cache store not found: redis'
             ]);
 
@@ -557,10 +581,10 @@ class OrderServiceTest extends TestCase
     public function test_get_all_orders_continues_when_cache_write_fails(): void
     {
         // Arrange
-        $orders = [
+        $orders = collect([
             new Order(),
             new Order()
-        ];
+        ]);
 
         // Mock Redis cache
         $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
@@ -594,7 +618,7 @@ class OrderServiceTest extends TestCase
             ]);
 
         // Mock repository
-        $this->orderRepository->shouldReceive('findAll')
+        $this->orderRepository->shouldReceive('getAllWithRelations')
             ->once()
             ->andReturn($orders);
 
@@ -603,7 +627,7 @@ class OrderServiceTest extends TestCase
 
         // Assert
         $this->assertCount(2, $result);
-        $this->assertSame($orders, $result);
+        $this->assertSame($orders->all(), $result->all());
     }
 
     /**
@@ -808,5 +832,296 @@ class OrderServiceTest extends TestCase
 
         // Act
         $this->service->createOrder($data);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::createOrder
+     * @covers \App\Services\OrderService::prepareAndValidateItems
+     */
+    public function test_create_order_throws_validation_exception_when_product_validation_fails(): void
+    {
+        // Arrange
+        $data = [
+            'customer_id' => 1,
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                return $callback();
+            });
+
+        // Mock repository for initial order creation
+        $this->orderRepository->shouldReceive('create')
+            ->once()
+            ->with(['customer_id' => 1, 'total' => 0])
+            ->andReturn(new Order());
+
+        // Mock product service to throw validation exception
+        $errors = new MessageBag(['product_id' => ['Invalid product']]);
+        $this->productService->shouldReceive('validateProduct')
+            ->once()
+            ->andThrow(ValidationException::withMessages(['product_id' => ['Invalid product']]));
+
+        // Assert
+        $this->expectException(ValidationException::class);
+
+        // Act
+        $this->service->createOrder($data);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::createOrder
+     */
+    public function test_create_order_throws_exception_when_create_items_fails(): void
+    {
+        // Arrange
+        $order = new Order();
+        $data = [
+            'customer_id' => 1,
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                return $callback();
+            });
+
+        // Mock repository for initial order creation
+        $this->orderRepository->shouldReceive('create')
+            ->once()
+            ->with(['customer_id' => 1, 'total' => 0])
+            ->andReturn($order);
+
+        // Mock product service for validation
+        $this->productService->shouldReceive('validateProduct')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository to throw exception when creating items
+        $this->orderRepository->shouldReceive('createOrderItems')
+            ->once()
+            ->andThrow(new \Exception('Failed to create order items'));
+
+        // Assert
+        $this->expectException(OrderCreationException::class);
+        $this->expectExceptionMessage('Failed to create order: Failed to create order items');
+
+        // Act
+        $this->service->createOrder($data);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::createOrder
+     */
+    public function test_create_order_throws_exception_when_update_total_fails(): void
+    {
+        // Arrange
+        $order = new Order();
+        $data = [
+            'customer_id' => 1,
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                return $callback();
+            });
+
+        // Mock repository for initial order creation
+        $this->orderRepository->shouldReceive('create')
+            ->once()
+            ->with(['customer_id' => 1, 'total' => 0])
+            ->andReturn($order);
+
+        // Mock product service for validation
+        $this->productService->shouldReceive('validateProduct')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository for creating items
+        $this->orderRepository->shouldReceive('createOrderItems')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository to throw exception when updating total
+        $this->orderRepository->shouldReceive('updateTotal')
+            ->once()
+            ->andThrow(new \Exception('Failed to update total'));
+
+        // Assert
+        $this->expectException(OrderCreationException::class);
+        $this->expectExceptionMessage('Failed to create order: Failed to update total');
+
+        // Act
+        $this->service->createOrder($data);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::createOrder
+     */
+    public function test_create_order_throws_exception_when_find_with_relations_fails(): void
+    {
+        // Arrange
+        $order = new Order();
+        $data = [
+            'customer_id' => 1,
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                return $callback();
+            });
+
+        // Mock repository for initial order creation
+        $this->orderRepository->shouldReceive('create')
+            ->once()
+            ->with(['customer_id' => 1, 'total' => 0])
+            ->andReturn($order);
+
+        // Mock product service for validation
+        $this->productService->shouldReceive('validateProduct')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository for creating items
+        $this->orderRepository->shouldReceive('createOrderItems')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository for updating total
+        $this->orderRepository->shouldReceive('updateTotal')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository to throw exception when finding with relations
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->andThrow(new \Exception('Failed to find order'));
+
+        // Assert
+        $this->expectException(OrderCreationException::class);
+        $this->expectExceptionMessage('Failed to create order: Failed to find order');
+
+        // Act
+        $this->service->createOrder($data);
+    }
+
+    /**
+     * @test
+     * @covers \App\Services\OrderService::createOrder
+     */
+    public function test_create_order_continues_when_clear_cache_fails(): void
+    {
+        // Arrange
+        $order = new Order();
+        $data = [
+            'customer_id' => 1,
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'quantity' => 2
+                ]
+            ]
+        ];
+
+        DB::shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                return $callback();
+            });
+
+        // Mock repository for initial order creation
+        $this->orderRepository->shouldReceive('create')
+            ->once()
+            ->with(['customer_id' => 1, 'total' => 0])
+            ->andReturn($order);
+
+        // Mock product service
+        $product = new Product();
+        $product->price = 100;
+        
+        $this->productService->shouldReceive('validateProduct')
+            ->once()
+            ->andReturn(true);
+        $this->productService->shouldReceive('getProduct')
+            ->once()
+            ->andReturn($product);
+
+        // Mock repository for creating items
+        $this->orderRepository->shouldReceive('createOrderItems')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository for updating total
+        $this->orderRepository->shouldReceive('updateTotal')
+            ->once()
+            ->andReturn(true);
+
+        // Mock repository for finding with relations
+        $this->orderRepository->shouldReceive('findWithRelations')
+            ->once()
+            ->andReturn($order);
+
+        // Mock Redis cache to throw exception
+        $redisTaggedCache = Mockery::mock('Illuminate\Cache\TaggedCache');
+        $redisTaggedCache->shouldReceive('flush')
+            ->once()
+            ->andThrow(new \Exception('Failed to clear cache'));
+
+        $redisStore = Mockery::mock('Illuminate\Contracts\Cache\Repository');
+        $redisStore->shouldReceive('tags')
+            ->once()
+            ->with(['orders'])
+            ->andReturn($redisTaggedCache);
+
+        // Setup Cache facade
+        $this->cache->shouldReceive('store')
+            ->with('redis')
+            ->once()
+            ->andReturn($redisStore);
+
+        // Mock logger for cache clear failure
+        $this->logger->shouldReceive('warning')
+            ->once()
+            ->with('Failed to clear Redis cache', [
+                'exception' => 'Failed to clear cache'
+            ]);
+
+        // Act
+        $result = $this->service->createOrder($data);
+
+        // Assert
+        $this->assertInstanceOf(Order::class, $result);
+        $this->assertSame($order, $result);
     }
 }
