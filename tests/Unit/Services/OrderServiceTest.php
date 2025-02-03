@@ -1008,10 +1008,16 @@ class OrderServiceTest extends TestCase
             ->with(['customer_id' => 1, 'total' => 0])
             ->andReturn($order);
 
-        // Mock product service for validation
+        // Mock product service
+        $product = new Product();
+        $product->price = 100;
+        
         $this->productService->shouldReceive('validateProduct')
             ->once()
             ->andReturn(true);
+        $this->productService->shouldReceive('getProduct')
+            ->once()
+            ->andReturn($product);
 
         // Mock repository for creating items
         $this->orderRepository->shouldReceive('createOrderItems')
